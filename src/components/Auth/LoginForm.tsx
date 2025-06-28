@@ -32,9 +32,24 @@ export function LoginForm() {
     e.preventDefault();
     setError('');
     
-    if (isSignUp && !isPasswordValid) {
-      setError('La contraseña no cumple con los requisitos de seguridad');
-      return;
+    // Validate required fields
+    if (isSignUp) {
+      if (!name.trim()) {
+        setError('El nombre es requerido');
+        return;
+      }
+      if (!email.trim()) {
+        setError('El email es requerido');
+        return;
+      }
+      if (!password) {
+        setError('La contraseña es requerida');
+        return;
+      }
+      if (!isPasswordValid) {
+        setError('La contraseña no cumple con los requisitos de seguridad');
+        return;
+      }
     }
     
     if (isSignUp) {
@@ -61,6 +76,11 @@ export function LoginForm() {
     </div>
   );
 
+  // Check if form is valid for submission
+  const isFormValid = isSignUp 
+    ? name.trim() && email.trim() && password && isPasswordValid
+    : email.trim() && password;
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-600 via-purple-600 to-pink-500 flex items-center justify-center px-4">
       <div className="max-w-md w-full space-y-8 bg-white rounded-2xl shadow-2xl p-8">
@@ -80,7 +100,7 @@ export function LoginForm() {
               <>
                 <div>
                   <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
-                    Nombre completo
+                    Nombre completo *
                   </label>
                   <input
                     id="name"
@@ -96,7 +116,7 @@ export function LoginForm() {
 
                 <div>
                   <label htmlFor="role" className="block text-sm font-medium text-gray-700 mb-1">
-                    Tipo de cuenta
+                    Tipo de cuenta *
                   </label>
                   <select
                     id="role"
@@ -115,7 +135,7 @@ export function LoginForm() {
 
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-                Email
+                Email *
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -136,7 +156,7 @@ export function LoginForm() {
 
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
-                Contraseña
+                Contraseña *
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -189,6 +209,28 @@ export function LoginForm() {
                     met={passwordRequirements.special} 
                     text="Al menos un carácter especial (!@#$%^&*)" 
                   />
+                  
+                  {/* Password strength indicator */}
+                  <div className="mt-3 pt-2 border-t border-gray-200">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-gray-700">Fortaleza:</span>
+                      <span className={`text-sm font-medium ${
+                        isPasswordValid ? 'text-green-600' : 'text-orange-600'
+                      }`}>
+                        {isPasswordValid ? 'Fuerte ✓' : 'Débil'}
+                      </span>
+                    </div>
+                    <div className="mt-1 w-full bg-gray-200 rounded-full h-2">
+                      <div 
+                        className={`h-2 rounded-full transition-all duration-300 ${
+                          isPasswordValid ? 'bg-green-500' : 'bg-orange-500'
+                        }`}
+                        style={{ 
+                          width: `${(Object.values(passwordRequirements).filter(Boolean).length / 5) * 100}%` 
+                        }}
+                      />
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
@@ -206,11 +248,14 @@ export function LoginForm() {
           <div>
             <button
               type="submit"
-              disabled={isLoading || (isSignUp && !isPasswordValid)}
+              disabled={isLoading || !isFormValid}
               className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
             >
               {isLoading ? (
-                'Procesando...'
+                <div className="flex items-center">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Procesando...
+                </div>
               ) : isSignUp ? (
                 <>
                   <UserPlus className="w-4 h-4 mr-2" />
@@ -225,8 +270,12 @@ export function LoginForm() {
           <div className="text-center">
             <button
               type="button"
-              onClick={() => setIsSignUp(!isSignUp)}
-              className="text-sm text-blue-600 hover:text-blue-500"
+              onClick={() => {
+                setIsSignUp(!isSignUp);
+                setError('');
+                setPassword('');
+              }}
+              className="text-sm text-blue-600 hover:text-blue-500 transition-colors"
             >
               {isSignUp 
                 ? '¿Ya tienes cuenta? Inicia sesión' 
