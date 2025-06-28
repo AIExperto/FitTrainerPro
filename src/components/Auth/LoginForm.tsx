@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { Mail, Lock, Eye, EyeOff, Dumbbell, UserPlus } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, Dumbbell, UserPlus, AlertCircle, CheckCircle } from 'lucide-react';
 
 export function LoginForm() {
   const [isSignUp, setIsSignUp] = useState(false);
@@ -12,9 +12,30 @@ export function LoginForm() {
   const [error, setError] = useState('');
   const { signIn, signUp, isLoading } = useAuth();
 
+  // Password validation
+  const validatePassword = (password: string) => {
+    const requirements = {
+      length: password.length >= 8,
+      uppercase: /[A-Z]/.test(password),
+      lowercase: /[a-z]/.test(password),
+      number: /\d/.test(password),
+      special: /[!@#$%^&*(),.?":{}|<>]/.test(password)
+    };
+    
+    return requirements;
+  };
+
+  const passwordRequirements = validatePassword(password);
+  const isPasswordValid = Object.values(passwordRequirements).every(req => req);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    
+    if (isSignUp && !isPasswordValid) {
+      setError('La contraseña no cumple con los requisitos de seguridad');
+      return;
+    }
     
     if (isSignUp) {
       const result = await signUp(email, password, { name, role });
@@ -28,6 +49,17 @@ export function LoginForm() {
       }
     }
   };
+
+  const PasswordRequirement = ({ met, text }: { met: boolean; text: string }) => (
+    <div className={`flex items-center space-x-2 text-sm ${met ? 'text-green-600' : 'text-gray-500'}`}>
+      {met ? (
+        <CheckCircle className="w-4 h-4" />
+      ) : (
+        <AlertCircle className="w-4 h-4" />
+      )}
+      <span>{text}</span>
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-600 via-purple-600 to-pink-500 flex items-center justify-center px-4">
@@ -132,19 +164,49 @@ export function LoginForm() {
                   )}
                 </button>
               </div>
+              
+              {/* Password requirements for signup */}
+              {isSignUp && password && (
+                <div className="mt-3 p-3 bg-gray-50 rounded-lg space-y-2">
+                  <p className="text-sm font-medium text-gray-700 mb-2">Requisitos de contraseña:</p>
+                  <PasswordRequirement 
+                    met={passwordRequirements.length} 
+                    text="Mínimo 8 caracteres" 
+                  />
+                  <PasswordRequirement 
+                    met={passwordRequirements.uppercase} 
+                    text="Al menos una mayúscula (A-Z)" 
+                  />
+                  <PasswordRequirement 
+                    met={passwordRequirements.lowercase} 
+                    text="Al menos una minúscula (a-z)" 
+                  />
+                  <PasswordRequirement 
+                    met={passwordRequirements.number} 
+                    text="Al menos un número (0-9)" 
+                  />
+                  <PasswordRequirement 
+                    met={passwordRequirements.special} 
+                    text="Al menos un carácter especial (!@#$%^&*)" 
+                  />
+                </div>
+              )}
             </div>
           </div>
 
           {error && (
             <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-              <p className="text-sm text-red-600">{error}</p>
+              <div className="flex items-center">
+                <AlertCircle className="w-5 h-5 text-red-500 mr-2" />
+                <p className="text-sm text-red-600">{error}</p>
+              </div>
             </div>
           )}
 
           <div>
             <button
               type="submit"
-              disabled={isLoading}
+              disabled={isLoading || (isSignUp && !isPasswordValid)}
               className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
             >
               {isLoading ? (
