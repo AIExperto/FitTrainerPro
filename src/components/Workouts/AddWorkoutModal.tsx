@@ -1,72 +1,87 @@
 import React, { useState } from 'react';
-import { X, Plus, Dumbbell, Clock, User } from 'lucide-react';
-import { mockExercises, mockClients } from '../../data/mockData';
+import { X, Plus, Dumbbell, User } from 'lucide-react';
+import { useExercises } from '../../hooks/useExercises';
+import { useClients } from '../../hooks/useClients';
+import { useWorkouts } from '../../hooks/useWorkouts';
 import { useAuth } from '../../contexts/AuthContext';
 
 interface AddWorkoutModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (workoutData: any) => void;
 }
 
-export function AddWorkoutModal({ isOpen, onClose, onSave }: AddWorkoutModalProps) {
+export function AddWorkoutModal({ isOpen, onClose }: AddWorkoutModalProps) {
   const { user } = useAuth();
+  const { exercises } = useExercises();
+  const { clients } = useClients();
+  const { addWorkout } = useWorkouts();
+  const [loading, setLoading] = useState(false);
+  
   const [formData, setFormData] = useState({
     name: '',
-    clientId: '',
+    client_id: '',
     date: new Date().toISOString().split('T')[0],
     exercises: [] as any[],
     notes: ''
   });
 
   const [currentExercise, setCurrentExercise] = useState({
-    exerciseId: '',
+    exercise_id: '',
     sets: '',
     reps: '',
     weight: '',
-    rest: ''
+    rest_seconds: ''
   });
-
-  const trainerClients = mockClients.filter(client => client.trainerId === user?.id);
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const workoutData = {
-      ...formData,
-      date: new Date(formData.date),
-      exercises: formData.exercises.map(ex => ({
-        ...ex,
-        sets: parseInt(ex.sets),
-        weight: ex.weight ? parseFloat(ex.weight) : undefined,
-        rest: ex.rest ? parseInt(ex.rest) : undefined
-      }))
-    };
-    
-    onSave(workoutData);
-    onClose();
-    setFormData({
-      name: '',
-      clientId: '',
-      date: new Date().toISOString().split('T')[0],
-      exercises: [],
-      notes: ''
-    });
+    if (formData.exercises.length === 0) return;
+
+    try {
+      setLoading(true);
+      await addWorkout({
+        client_id: formData.client_id,
+        name: formData.name,
+        date: formData.date,
+        exercises: formData.exercises.map(ex => ({
+          exercise_id: ex.exercise_id,
+          sets: parseInt(ex.sets),
+          reps: ex.reps,
+          weight: ex.weight ? parseFloat(ex.weight) : undefined,
+          rest_seconds: ex.rest_seconds ? parseInt(ex.rest_seconds) : undefined
+        })),
+        notes: formData.notes
+      });
+      
+      onClose();
+      setFormData({
+        name: '',
+        client_id: '',
+        date: new Date().toISOString().split('T')[0],
+        exercises: [],
+        notes: ''
+      });
+    } catch (error: any) {
+      alert('Error al crear rutina: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const addExercise = () => {
-    if (currentExercise.exerciseId && currentExercise.sets && currentExercise.reps) {
+    if (currentExercise.exercise_id && currentExercise.sets && currentExercise.reps) {
       setFormData(prev => ({
         ...prev,
         exercises: [...prev.exercises, { ...currentExercise }]
       }));
       setCurrentExercise({
-        exerciseId: '',
+        exercise_id: '',
         sets: '',
         reps: '',
         weight: '',
-        rest: ''
+        rest_seconds: ''
       });
     }
   };
@@ -79,13 +94,8 @@ export function AddWorkoutModal({ isOpen, onClose, onSave }: AddWorkoutModalProp
   };
 
   const getExerciseName = (exerciseId: string) => {
-    const exercise = mockExercises.find(e => e.id === exerciseId);
+    const exercise = exercises.find(e => e.id === exerciseId);
     return exercise?.name || 'Ejercicio desconocido';
-  };
-
-  const getClientName = (clientId: string) => {
-    const client = trainerClients.find(c => c.id === clientId);
-    return client?.name || 'Cliente desconocido';
   };
 
   return (
@@ -125,12 +135,12 @@ export function AddWorkoutModal({ isOpen, onClose, onSave }: AddWorkoutModalProp
               </label>
               <select
                 required
-                value={formData.clientId}
-                onChange={(e) => setFormData(prev => ({ ...prev, clientId: e.target.value }))}
+                value={formData.client_id}
+                onChange={(e) => setFormData(prev => ({ ...prev, client_id: e.target.value }))}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               >
                 <option value="">Seleccionar cliente</option>
-                {trainerClients.map(client => (
+                {clients.map(client => (
                   <option key={client.id} value={client.id}>{client.name}</option>
                 ))}
               </select>
@@ -159,12 +169,12 @@ export function AddWorkoutModal({ isOpen, onClose, onSave }: AddWorkoutModalProp
               <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
                 <div>
                   <select
-                    value={currentExercise.exerciseId}
-                    onChange={(e) => setCurrentExercise(prev => ({ ...prev, exerciseId: e.target.value }))}
+                    value={currentExercise.exercise_id}
+                    onChange={(e) => setCurrentExercise(prev => ({ ...prev, exercise_id: e.target.value }))}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   >
                     <option value="">Seleccionar ejercicio</option>
-                    {mockExercises.map(exercise => (
+                    {exercises.map(exercise => (
                       <option key={exercise.id} value={exercise.id}>{exercise.name}</option>
                     ))}
                   </select>
@@ -205,8 +215,8 @@ export function AddWorkoutModal({ isOpen, onClose, onSave }: AddWorkoutModalProp
                     type="number"
                     min="30"
                     max="300"
-                    value={currentExercise.rest}
-                    onChange={(e) => setCurrentExercise(prev => ({ ...prev, rest: e.target.value }))}
+                    value={currentExercise.rest_seconds}
+                    onChange={(e) => setCurrentExercise(prev => ({ ...prev, rest_seconds: e.target.value }))}
                     className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     placeholder="Descanso (seg)"
                   />
@@ -227,12 +237,12 @@ export function AddWorkoutModal({ isOpen, onClose, onSave }: AddWorkoutModalProp
                 <div key={index} className="flex items-center justify-between bg-white border border-gray-200 rounded-lg p-3">
                   <div className="flex-1">
                     <span className="font-medium text-gray-900">
-                      {getExerciseName(exercise.exerciseId)}
+                      {getExerciseName(exercise.exercise_id)}
                     </span>
                     <div className="text-sm text-gray-600 mt-1">
                       {exercise.sets} series × {exercise.reps} reps
                       {exercise.weight && ` • ${exercise.weight}kg`}
-                      {exercise.rest && ` • ${exercise.rest}s descanso`}
+                      {exercise.rest_seconds && ` • ${exercise.rest_seconds}s descanso`}
                     </div>
                   </div>
                   <button
@@ -278,10 +288,10 @@ export function AddWorkoutModal({ isOpen, onClose, onSave }: AddWorkoutModalProp
             </button>
             <button
               type="submit"
-              disabled={formData.exercises.length === 0}
+              disabled={formData.exercises.length === 0 || loading}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              Crear Rutina
+              {loading ? 'Creando...' : 'Crear Rutina'}
             </button>
           </div>
         </form>

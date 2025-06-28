@@ -1,36 +1,42 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { mockProgressEntries } from '../../data/mockData';
+import { useProgress } from '../../hooks/useProgress';
 import { 
   TrendingUp, 
   Plus, 
-  Calendar,
   Weight,
   Activity,
   Target
 } from 'lucide-react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { AddProgressModal } from './AddProgressModal';
 
 export function ProgressPage() {
   const { user } = useAuth();
-  const [selectedMetric, setSelectedMetric] = useState<'weight' | 'bodyFat' | 'muscleMass'>('weight');
+  const { progress, loading, addProgress } = useProgress();
+  const [selectedMetric, setSelectedMetric] = useState<'weight' | 'body_fat' | 'muscle_mass'>('weight');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   
-  const userProgress = mockProgressEntries.filter(entry => entry.clientId === user?.id);
-  
-  const chartData = userProgress.map(entry => ({
-    date: format(entry.date, 'dd/MM'),
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  const chartData = progress.map(entry => ({
+    date: format(new Date(entry.date), 'dd/MM'),
     peso: entry.weight,
-    grasa: entry.bodyFat || 0,
-    musculo: entry.muscleMass || 0,
+    grasa: entry.body_fat || 0,
+    musculo: entry.muscle_mass || 0,
     imc: entry.bmi || 0
   }));
 
-  const latestProgress = userProgress[userProgress.length - 1];
-  const previousProgress = userProgress[userProgress.length - 2];
+  const latestProgress = progress[progress.length - 1];
+  const previousProgress = progress[progress.length - 2];
 
   const getChange = (current?: number, previous?: number) => {
     if (!current || !previous) return null;
@@ -43,12 +49,16 @@ export function ProgressPage() {
   };
 
   const weightChange = getChange(latestProgress?.weight, previousProgress?.weight);
-  const bodyFatChange = getChange(latestProgress?.bodyFat, previousProgress?.bodyFat);
-  const muscleMassChange = getChange(latestProgress?.muscleMass, previousProgress?.muscleMass);
+  const bodyFatChange = getChange(latestProgress?.body_fat, previousProgress?.body_fat);
+  const muscleMassChange = getChange(latestProgress?.muscle_mass, previousProgress?.muscle_mass);
 
-  const handleAddProgress = (progressData: any) => {
-    console.log('Adding new progress entry:', progressData);
-    alert('Medición agregada exitosamente (funcionalidad de demostración)');
+  const handleAddProgress = async (progressData: any) => {
+    try {
+      await addProgress(progressData);
+      setIsAddModalOpen(false);
+    } catch (error: any) {
+      alert('Error al agregar medición: ' + error.message);
+    }
   };
 
   return (
@@ -97,7 +107,7 @@ export function ProgressPage() {
             <div>
               <p className="text-sm font-medium text-gray-600">% Grasa Corporal</p>
               <p className="text-3xl font-bold text-gray-900">
-                {latestProgress?.bodyFat || 0}
+                {latestProgress?.body_fat || 0}
                 <span className="text-lg font-normal text-gray-500">%</span>
               </p>
               {bodyFatChange && (
@@ -117,7 +127,7 @@ export function ProgressPage() {
             <div>
               <p className="text-sm font-medium text-gray-600">Masa Muscular</p>
               <p className="text-3xl font-bold text-gray-900">
-                {latestProgress?.muscleMass || 0}
+                {latestProgress?.muscle_mass || 0}
                 <span className="text-lg font-normal text-gray-500">kg</span>
               </p>
               {muscleMassChange && (
@@ -168,9 +178,9 @@ export function ProgressPage() {
               Peso
             </button>
             <button
-              onClick={() => setSelectedMetric('bodyFat')}
+              onClick={() => setSelectedMetric('body_fat')}
               className={`px-3 py-1 text-sm rounded-lg transition-colors ${
-                selectedMetric === 'bodyFat'
+                selectedMetric === 'body_fat'
                   ? 'bg-orange-100 text-orange-700'
                   : 'text-gray-600 hover:bg-gray-100'
               }`}
@@ -178,9 +188,9 @@ export function ProgressPage() {
               % Grasa
             </button>
             <button
-              onClick={() => setSelectedMetric('muscleMass')}
+              onClick={() => setSelectedMetric('muscle_mass')}
               className={`px-3 py-1 text-sm rounded-lg transition-colors ${
-                selectedMetric === 'muscleMass'
+                selectedMetric === 'muscle_mass'
                   ? 'bg-green-100 text-green-700'
                   : 'text-gray-600 hover:bg-gray-100'
               }`}
@@ -191,105 +201,89 @@ export function ProgressPage() {
         </div>
         
         <div className="h-80">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="date" />
-              <YAxis />
-              <Tooltip />
-              <Line 
-                type="monotone" 
-                dataKey={selectedMetric === 'weight' ? 'peso' : selectedMetric === 'bodyFat' ? 'grasa' : 'musculo'}
-                stroke={selectedMetric === 'weight' ? '#3B82F6' : selectedMetric === 'bodyFat' ? '#F97316' : '#10B981'}
-                strokeWidth={3}
-                dot={{ fill: selectedMetric === 'weight' ? '#3B82F6' : selectedMetric === 'bodyFat' ? '#F97316' : '#10B981', strokeWidth: 2, r: 4 }}
-              />
-            </LineChart>
-          </ResponsiveContainer>
+          {chartData.length > 0 ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="date" />
+                <YAxis />
+                <Tooltip />
+                <Line 
+                  type="monotone" 
+                  dataKey={selectedMetric === 'weight' ? 'peso' : selectedMetric === 'body_fat' ? 'grasa' : 'musculo'}
+                  stroke={selectedMetric === 'weight' ? '#3B82F6' : selectedMetric === 'body_fat' ? '#F97316' : '#10B981'}
+                  strokeWidth={3}
+                  dot={{ fill: selectedMetric === 'weight' ? '#3B82F6' : selectedMetric === 'body_fat' ? '#F97316' : '#10B981', strokeWidth: 2, r: 4 }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="flex items-center justify-center h-full text-gray-500">
+              <div className="text-center">
+                <TrendingUp className="mx-auto h-8 w-8 mb-2" />
+                <p>No hay datos de progreso</p>
+                <p className="text-sm">Agrega tu primera medición</p>
+              </div>
+            </div>
+          )}
         </div>
-      </div>
-
-      {/* Mediciones corporales */}
-      <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-        <h2 className="text-lg font-semibold text-gray-900 mb-6">Mediciones Corporales Actuales</h2>
-        {latestProgress?.measurements && (
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-            <div className="text-center p-4 bg-blue-50 rounded-lg">
-              <p className="text-sm text-gray-600 mb-1">Pecho</p>
-              <p className="text-2xl font-bold text-blue-600">{latestProgress.measurements.chest}</p>
-              <p className="text-xs text-gray-500">cm</p>
-            </div>
-            <div className="text-center p-4 bg-green-50 rounded-lg">
-              <p className="text-sm text-gray-600 mb-1">Cintura</p>
-              <p className="text-2xl font-bold text-green-600">{latestProgress.measurements.waist}</p>
-              <p className="text-xs text-gray-500">cm</p>
-            </div>
-            <div className="text-center p-4 bg-purple-50 rounded-lg">
-              <p className="text-sm text-gray-600 mb-1">Caderas</p>
-              <p className="text-2xl font-bold text-purple-600">{latestProgress.measurements.hips}</p>
-              <p className="text-xs text-gray-500">cm</p>
-            </div>
-            <div className="text-center p-4 bg-orange-50 rounded-lg">
-              <p className="text-sm text-gray-600 mb-1">Brazos</p>
-              <p className="text-2xl font-bold text-orange-600">{latestProgress.measurements.arms}</p>
-              <p className="text-xs text-gray-500">cm</p>
-            </div>
-            <div className="text-center p-4 bg-pink-50 rounded-lg">
-              <p className="text-sm text-gray-600 mb-1">Piernas</p>
-              <p className="text-2xl font-bold text-pink-600">{latestProgress.measurements.thighs}</p>
-              <p className="text-xs text-gray-500">cm</p>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Historial de mediciones */}
       <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
         <h2 className="text-lg font-semibold text-gray-900 mb-6">Historial de Mediciones</h2>
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Fecha
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Peso
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  % Grasa
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Masa Muscular
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  IMC
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {userProgress.map((entry) => (
-                <tr key={entry.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                    {format(entry.date, 'dd MMM yyyy', { locale: es })}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {entry.weight} kg
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {entry.bodyFat || 'N/A'}%
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {entry.muscleMass || 'N/A'} kg
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {entry.bmi?.toFixed(1) || 'N/A'}
-                  </td>
+        {progress.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Fecha
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Peso
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    % Grasa
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Masa Muscular
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    IMC
+                  </th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {progress.map((entry) => (
+                  <tr key={entry.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      {format(new Date(entry.date), 'dd MMM yyyy', { locale: es })}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {entry.weight} kg
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {entry.body_fat || 'N/A'}%
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {entry.muscle_mass || 'N/A'} kg
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {entry.bmi?.toFixed(1) || 'N/A'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="text-center py-8 text-gray-500">
+            <TrendingUp className="mx-auto h-8 w-8 mb-2" />
+            <p>No hay mediciones registradas</p>
+            <p className="text-sm">Agrega tu primera medición para comenzar a hacer seguimiento</p>
+          </div>
+        )}
       </div>
 
       <AddProgressModal

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { mockWorkouts, mockExercises, mockClients } from '../../data/mockData';
+import { useWorkouts } from '../../hooks/useWorkouts';
+import { useClients } from '../../hooks/useClients';
 import { 
   Dumbbell, 
   Plus, 
@@ -18,37 +19,30 @@ import { CompleteWorkoutModal } from './CompleteWorkoutModal';
 
 export function WorkoutsPage() {
   const { user } = useAuth();
+  const { workouts, loading, completeWorkout } = useWorkouts();
+  const { clients } = useClients();
   const [activeTab, setActiveTab] = useState<'all' | 'completed' | 'pending'>('all');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isCompleteModalOpen, setIsCompleteModalOpen] = useState(false);
   const [selectedWorkout, setSelectedWorkout] = useState<any>(null);
 
-  const userWorkouts = user?.role === 'trainer' 
-    ? mockWorkouts.filter(w => {
-        const client = mockClients.find(c => c.id === w.clientId);
-        return client?.trainerId === user.id;
-      })
-    : mockWorkouts.filter(w => w.clientId === user?.id);
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
 
-  const filteredWorkouts = userWorkouts.filter(workout => {
+  const filteredWorkouts = workouts.filter(workout => {
     if (activeTab === 'completed') return workout.completed;
     if (activeTab === 'pending') return !workout.completed;
     return true;
   });
 
-  const getExerciseName = (exerciseId: string) => {
-    const exercise = mockExercises.find(e => e.id === exerciseId);
-    return exercise?.name || 'Ejercicio desconocido';
-  };
-
   const getClientName = (clientId: string) => {
-    const client = mockClients.find(c => c.id === clientId);
+    const client = clients.find(c => c.id === clientId);
     return client?.name || 'Cliente desconocido';
-  };
-
-  const handleAddWorkout = (workoutData: any) => {
-    console.log('Adding new workout:', workoutData);
-    alert('Rutina creada exitosamente (funcionalidad de demostración)');
   };
 
   const handleCompleteWorkout = (workout: any) => {
@@ -56,9 +50,14 @@ export function WorkoutsPage() {
     setIsCompleteModalOpen(true);
   };
 
-  const handleWorkoutCompletion = (completionData: any) => {
-    console.log('Completing workout:', selectedWorkout.id, completionData);
-    alert('Entrenamiento marcado como completado (funcionalidad de demostración)');
+  const handleWorkoutCompletion = async (completionData: any) => {
+    try {
+      await completeWorkout(selectedWorkout.id, completionData);
+      setIsCompleteModalOpen(false);
+      setSelectedWorkout(null);
+    } catch (error: any) {
+      alert('Error al completar entrenamiento: ' + error.message);
+    }
   };
 
   return (
@@ -99,7 +98,7 @@ export function WorkoutsPage() {
                   : 'border-transparent text-gray-500 hover:text-gray-700'
               }`}
             >
-              Todas ({userWorkouts.length})
+              Todas ({workouts.length})
             </button>
             <button
               onClick={() => setActiveTab('completed')}
@@ -109,7 +108,7 @@ export function WorkoutsPage() {
                   : 'border-transparent text-gray-500 hover:text-gray-700'
               }`}
             >
-              Completadas ({userWorkouts.filter(w => w.completed).length})
+              Completadas ({workouts.filter(w => w.completed).length})
             </button>
             <button
               onClick={() => setActiveTab('pending')}
@@ -119,7 +118,7 @@ export function WorkoutsPage() {
                   : 'border-transparent text-gray-500 hover:text-gray-700'
               }`}
             >
-              Pendientes ({userWorkouts.filter(w => !w.completed).length})
+              Pendientes ({workouts.filter(w => !w.completed).length})
             </button>
           </nav>
         </div>
@@ -143,7 +142,7 @@ export function WorkoutsPage() {
                         {user?.role === 'trainer' && (
                           <div className="flex items-center space-x-2 mt-1">
                             <User className="w-4 h-4 text-gray-400" />
-                            <span className="text-sm text-gray-600">{getClientName(workout.clientId)}</span>
+                            <span className="text-sm text-gray-600">{getClientName(workout.client_id)}</span>
                           </div>
                         )}
                       </div>
@@ -152,7 +151,7 @@ export function WorkoutsPage() {
                     <div className="flex items-center space-x-6 text-sm text-gray-600 mb-4">
                       <div className="flex items-center space-x-1">
                         <Calendar className="w-4 h-4" />
-                        <span>{format(workout.date, 'dd MMM yyyy', { locale: es })}</span>
+                        <span>{format(new Date(workout.date), 'dd MMM yyyy', { locale: es })}</span>
                       </div>
                       {workout.duration && (
                         <div className="flex items-center space-x-1">
@@ -162,17 +161,17 @@ export function WorkoutsPage() {
                       )}
                       <div className="flex items-center space-x-1">
                         <Activity className="w-4 h-4" />
-                        <span>{workout.exercises.length} ejercicios</span>
+                        <span>{workout.workout_exercises.length} ejercicios</span>
                       </div>
                     </div>
 
                     {/* Lista de ejercicios */}
                     <div className="space-y-2">
-                      {workout.exercises.map((exercise, index) => (
+                      {workout.workout_exercises.map((exercise, index) => (
                         <div key={index} className="flex items-center justify-between bg-gray-50 rounded-lg p-3">
                           <div>
                             <span className="text-sm font-medium text-gray-900">
-                              {getExerciseName(exercise.exerciseId)}
+                              {exercise.exercises.name}
                             </span>
                           </div>
                           <div className="text-sm text-gray-600">
@@ -217,9 +216,6 @@ export function WorkoutsPage() {
                         Marcar Completado
                       </button>
                     )}
-                    <button className="px-3 py-1 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
-                      Ver Detalles
-                    </button>
                   </div>
                 </div>
               </div>
@@ -248,7 +244,6 @@ export function WorkoutsPage() {
       <AddWorkoutModal
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
-        onSave={handleAddWorkout}
       />
 
       <CompleteWorkoutModal
